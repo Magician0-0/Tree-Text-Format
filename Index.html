@@ -1,1 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Text Tree Builder with OCR</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
+    .node {
+      margin-left: 20px;
+      border-left: 2px solid #aaa;
+      padding-left: 10px;
+      margin-top: 10px;
+    }
+
+    .node input {
+      font-size: 18px;
+      padding: 8px;
+      margin: 5px 3px;
+      width: 250px;
+      max-width: 90vw;
+    }
+
+    .children {
+      margin-top: 5px;
+    }
+
+    button {
+      font-size: 16px;
+      padding: 6px 12px;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+
+    #submitBtn {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      font-size: 18px;
+      z-index: 10;
+    }
+
+    #output {
+      width: 95%;
+      max-width: 800px;
+      height: 300px;
+      margin-top: 30px;
+      white-space: pre;
+      font-size: 16px;
+      display: none;
+      font-family: monospace;
+      padding: 10px;
+    }
+
+    #ocrText {
+      margin-top: 20px;
+      font-size: 14px;
+      white-space: pre-wrap;
+      background: #f0f0f0;
+      padding: 10px;
+      display: none;
+      width: 95%;
+      max-width: 800px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Text Tree Builder</h2>
+
+  <input type="file" accept="image/*" onchange="extractText(this)" />
+  <div id="ocrText"></div>
+
+  <div id="treeRoot" class="node">
+    <input type="text" placeholder="Node Name" onkeydown="handleEnter(event)" />
+    <input type="text" placeholder="Value (optional)" onkeydown="handleEnter(event)" />
+    <button onclick="addChild(this)">Add Child</button>
+    <div class="children"></div>
+  </div>
+
+  <button id="submitBtn" onclick="submitTree()">Submit</button>
+  <textarea id="output" readonly></textarea>
+
+  <script>
+    function addChild(buttonOrNode) {
+      const parentNode = buttonOrNode.closest('.node').querySelector('.children');
+      const newNode = document.createElement('div');
+      newNode.className = 'node';
+      newNode.innerHTML = `
+        <input type="text" placeholder="Node Name" onkeydown="handleEnter(event)" />
+        <input type="text" placeholder="Value (optional)" onkeydown="handleEnter(event)" />
+        <button onclick="addChild(this)">Add Child</button>
+        <div class="children"></div>
+      `;
+      parentNode.appendChild(newNode);
+      newNode.querySelector('input').focus();
+    }
+
+    function handleEnter(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addChild(e.target.closest('.node'));
+      }
+    }
+
+    function getTreeText(node, prefix = '', isLast = true) {
+      const inputs = node.querySelectorAll(':scope > input');
+      const name = inputs[0]?.value.trim() || '(Unnamed)';
+      const value = inputs[1]?.value.trim();
+      const hasValue = value ? `   ${value}` : '';
+      const connector = prefix ? (isLast ? '└── ' : '├── ') : '';
+      let result = prefix + connector + name + hasValue + '\n';
+
+      const children = node.querySelector('.children');
+      if (children) {
+        const childNodes = Array.from(children.children).filter(c => c.classList.contains('node'));
+        const newPrefix = prefix + (isLast ? '    ' : '│   ');
+        childNodes.forEach((child, index) => {
+          const last = index === childNodes.length - 1;
+          result += getTreeText(child, newPrefix, last);
+        });
+      }
+      return result;
+    }
+
+    function submitTree() {
+      const root = document.getElementById('treeRoot');
+      const output = document.getElementById('output');
+      const text = getTreeText(root).trim();
+      output.value = text;
+      output.style.display = 'block';
+      output.select();
+      document.execCommand('copy');
+      alert('Text tree copied to clipboard!');
+    }
+
+    async function extractText(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const div = document.getElementById('ocrText');
+      div.innerText = 'Processing image...';
+      div.style.display = 'block';
+
+      const result = await Tesseract.recognize(file, 'eng');
+      const text = result.data.text.trim();
+      div.innerText = text;
+      document.getElementById('output').value = text;
+      document.getElementById('output').style.display = 'block';
+      document.getElementById('output').select();
+    }
+  </script>
+
+</body>
+</html>
